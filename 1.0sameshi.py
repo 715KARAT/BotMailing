@@ -23,7 +23,8 @@ class Form(StatesGroup):
     waiting_for_files = State()
 
 # Конфигурация
-TOKEN = "7714134512:AAGXRKb4ZNc4gltW6UsmxSRmqBVLeESv2AA"
+import os
+TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 796381516
 
 # Хранение данных
