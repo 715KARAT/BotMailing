@@ -25,7 +25,7 @@ class Form(StatesGroup):
 # Конфигурация
 import os
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = 796381516
+ADMIN_ID = 739361473 # 796381516
 
 # Хранение данных
 current_mailing = {
@@ -34,12 +34,12 @@ current_mailing = {
     "text": "Здравствуйте! Вот материалы по рассылке: https://drive.google.com/drive/folders/1-srO5whhr4KfEMRej111by9qcs37HbOI?usp=sharing",
     "channels": [
         {"id": -1002895938397, "name": "@studywithmiro"},
-        #{"id": -1002542163897, "name": "@miroholst"},
-        #{"id": -1001832702236, "name": "@mamasbooks"},
-        #{"id": -1002386014261, "name": "@russianlanguageandgeography"},
-        #{"id": -1002861287275, "name": "@lazvik_repet"},
-        #{"id": -1002204291357, "name": "@mirocreativonline"},
-        #{"id": -1002549199780, "name": "@proyazyk1"},
+        {"id": -1002542163897, "name": "@miroholst"},
+        {"id": -1001832702236, "name": "@mamasbooks"},
+        {"id": -1002386014261, "name": "@russianlanguageandgeography"},
+        {"id": -1002861287275, "name": "@lazvik_repet"},
+        {"id": -1002204291357, "name": "@mirocreativonline"},
+        {"id": -1002549199780, "name": "@proyazyk1"},
         
         # {"id": -1002631054307, "name": "@zxcmabot"},
     ],
