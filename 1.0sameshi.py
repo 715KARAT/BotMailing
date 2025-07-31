@@ -11,7 +11,9 @@ class Form(StatesGroup):
     waiting_for_files = State()
 
 # Конфигурация Test uid: 7714134512:AAGXRKb4ZNc4gltW6UsmxSRmqBVLeESv2AA
-BOT_TOKEN = "8134920273:AAGEajeajGaLSawxyzKwGzJjNl_4cVKR6U0" 
+import os
+TOKEN = os.getenv("TOKEN")
+   
 ADMIN_ID = 796381516  # Ваш ID в Telegram
 
 # Хранение данных
@@ -25,7 +27,7 @@ current_mailing = {
     "user_ids": set()
 }
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # Сохраняем ID пользователей (кроме команд и callback)
