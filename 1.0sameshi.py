@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -6,15 +7,24 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("bot.log")
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Определение состояний
 class Form(StatesGroup):
     waiting_for_files = State()
 
-# Конфигурация Test uid: 7714134512:AAGXRKb4ZNc4gltW6UsmxSRmqBVLeESv2AA
-import os
-TOKEN = os.getenv("TOKEN")
-   
-ADMIN_ID = 796381516  # Ваш ID в Telegram
+# Конфигурация
+TOKEN = "7714134512:AAGXRKb4ZNc4gltW6UsmxSRmqBVLeESv2AA"
+ADMIN_ID = 796381516
 
 # Хранение данных
 current_mailing = {
@@ -30,7 +40,6 @@ current_mailing = {
         {"id": -1002204291357, "name": "@mirocreativonline"},
         {"id": -1002549199780, "name": "@proyazyk1"},
         {"id": -1002631054307, "name": "@zxcmabot"},
-        
     ],
     "user_ids": set()
 }
@@ -38,18 +47,12 @@ current_mailing = {
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Сохраняем ID пользователей (кроме команд и callback)
-@dp.message(~(F.command | F.text.startswith('/')))
-async def save_user_id(message: types.Message):
-    current_mailing["user_ids"].add(message.from_user.id)
-
-# Проверка подписки
 async def check_subscription(user_id: int) -> tuple[bool, list[str]]:
     """
-    Проверяет подписки на каналы
-    Возвращает: 
-    - True/False (подписан на все или нет)
-    - Список названий каналов без подписки
+    Проверяет подписки на все каналы
+    Возвращает кортеж:
+    - True если подписан на все каналы, иначе False
+    - Список каналов, на которые нет подписки
     """
     unsubscribed_channels = []
     
@@ -59,26 +62,26 @@ async def check_subscription(user_id: int) -> tuple[bool, list[str]]:
             if member.status not in ["member", "administrator", "creator"]:
                 unsubscribed_channels.append(channel["name"])
         except Exception as e:
-            print(f"Ошибка проверки канала {channel['name']}: {e}")
+            logger.error(f"Ошибка проверки подписки на {channel['name']}: {e}")
             unsubscribed_channels.append(channel["name"])
     
-    return (len(unsubscribed_channels) == 0, unsubscribed_channels)
+    return (not unsubscribed_channels, unsubscribed_channels)
 
-# Команда старта
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     current_mailing["user_ids"].add(message.from_user.id)
+    is_subscribed, missing_channels = await check_subscription(message.from_user.id)
     
-    if await check_subscription(message.from_user.id):
+    if is_subscribed:
         await message.answer("✅ Вы подписаны на все каналы! Ожидайте рассылку.")
     else:
-        channels = "\n".join([f"- {c['name']}" for c in current_mailing["channels"]])
+        channels_list = "\n".join([f"• {name}" for name in missing_channels])
         await message.answer(
-            f"📢 Для доступа к материалам подпишитесь на наши каналы:\n{channels}\n"
+            f"📢 Для доступа к материалам подпишитесь на наши каналы:\n\n"
+            f"{channels_list}\n\n"
             "После подписки нажмите /start повторно для проверки."
         )
 
-# Команда для запуска рассылки
 @dp.message(Command("mailing"))
 async def cmd_mailing(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -87,15 +90,12 @@ async def cmd_mailing(message: types.Message):
     await message.answer("🔄 Запускаю рассылку...")
     asyncio.create_task(send_mailing())
 
-# Админ-панель
 @dp.message(Command("admin"))
 async def cmd_admin(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("⛔ У вас нет прав доступа!")
     
-    current_mailing["user_ids"].add(message.from_user.id)
-    await state.clear()  # Сбрасываем состояние
-    
+    await state.clear()
     buttons = [
         [InlineKeyboardButton(text="🔄 Запустить рассылку", callback_data="send_mailing")],
         [InlineKeyboardButton(text="📅 Изменить дату", callback_data="change_date")],
@@ -105,7 +105,7 @@ async def cmd_admin(message: types.Message, state: FSMContext):
     
     info = (
         f"📅 Дата рассылки: {current_mailing['date']}\n"
-        f"📝 Текст: {current_mailing['text']}\n"
+        f"📝 Текст: {current_mailing['text'][:100]}...\n"
         f"📎 Файлов: {len(current_mailing['files'])}\n"
         f"👥 Пользователей: {len(current_mailing['user_ids'])}"
     )
@@ -115,64 +115,55 @@ async def cmd_admin(message: types.Message, state: FSMContext):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
     )
 
-# Обработчики для админа
 @dp.callback_query(F.data == "change_date")
-async def change_date(callback: types.CallbackQuery):
-    await callback.message.answer("Введите дату (ДД.ММ.ГГГГ):")
+async def change_date(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer("Введите дату в формате ДД.ММ.ГГГГ:")
+    await state.set_state("waiting_for_date")
     await callback.answer()
+
+@dp.message(F.state == "waiting_for_date", F.text.regexp(r'^\d{2}\.\d{2}\.\d{4}$'))
+async def handle_date(message: types.Message, state: FSMContext):
+    current_mailing["date"] = message.text
+    await state.clear()
+    await message.answer(f"📅 Новая дата рассылки: {message.text}")
+    await cmd_admin(message, state)
 
 @dp.callback_query(F.data == "change_text")
-async def change_text(callback: types.CallbackQuery):
-    await callback.message.answer("Введите новый текст:")
+async def change_text(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.answer("Введите новый текст рассылки:")
+    await state.set_state("waiting_for_text")
     await callback.answer()
 
-@dp.callback_query(F.data == "add_files")
-async def add_files(callback: types.CallbackQuery):
-    await callback.message.answer("Отправьте файлы:")
-    await callback.answer()
-
-@dp.message(F.from_user.id == ADMIN_ID, F.text.regexp(r'^\d{2}\.\d{2}\.\d{4}$'))
-async def handle_date(message: types.Message):
-    current_mailing["date"] = message.text
-    await message.answer(f"📅 Новая дата: {message.text}")
-
-@dp.message(F.from_user.id == ADMIN_ID, F.document | F.photo)
-async def handle_files(message: types.Message):
-    file_id = message.document.file_id if message.document else message.photo[-1].file_id
-    current_mailing["files"].append(file_id)
-    await message.answer(f"📎 Файл добавлен! Всего: {len(current_mailing['files'])}")
-
-@dp.message(F.from_user.id == ADMIN_ID)
-async def handle_text(message: types.Message):
+@dp.message(F.state == "waiting_for_text")
+async def handle_text(message: types.Message, state: FSMContext):
     current_mailing["text"] = message.text
-    await message.answer("📝 Текст обновлен!")
+    await state.clear()
+    await message.answer("📝 Текст рассылки обновлен!")
+    await cmd_admin(message, state)
 
-# Обработка кнопки "Добавить файлы"
 @dp.callback_query(F.data == "add_files")
 async def add_files_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer(
-        "Отправьте файлы для рассылки (документы, фото, видео и т.д.).\n"
+        "Отправьте файлы для рассылки (документы, фото, видео).\n"
         "Когда закончите, нажмите /admin для возврата в меню."
     )
     await state.set_state(Form.waiting_for_files)
     await callback.answer()
 
-# Обработка файлов от админа
 @dp.message(F.from_user.id == ADMIN_ID, Form.waiting_for_files, F.document | F.photo | F.video)
 async def handle_files(message: types.Message):
+    file_id = None
     if message.document:
         file_id = message.document.file_id
     elif message.photo:
         file_id = message.photo[-1].file_id
     elif message.video:
         file_id = message.video.file_id
-    else:
-        return
     
-    current_mailing["files"].append(file_id)
-    await message.answer(f"📎 Файл добавлен! Всего файлов: {len(current_mailing['files'])}")
+    if file_id:
+        current_mailing["files"].append(file_id)
+        await message.answer(f"📎 Файл добавлен! Всего: {len(current_mailing['files'])}")
 
-# Обработчики рассылки
 @dp.callback_query(F.data == "send_mailing")
 async def send_mailing_handler(callback: types.CallbackQuery):
     await callback.answer("Рассылка начата...")
@@ -182,11 +173,12 @@ async def send_mailing():
     try:
         success = failed = 0
         total = len(current_mailing["user_ids"])
-        await bot.send_message(ADMIN_ID, f"📤 Рассылка начата для {total} пользователей...")
+        logger.info(f"Начало рассылки для {total} пользователей")
         
-        for user_id in current_mailing["user_ids"]:
+        for user_id in list(current_mailing["user_ids"]):  # Используем list для копирования
             try:
-                if await check_subscription(user_id):
+                is_subscribed, _ = await check_subscription(user_id)
+                if is_subscribed:
                     await bot.send_message(user_id, current_mailing["text"])
                     for file_id in current_mailing["files"]:
                         await bot.send_document(user_id, file_id)
@@ -194,32 +186,40 @@ async def send_mailing():
                     success += 1
                 await asyncio.sleep(0.1)
             except Exception as e:
-                print(f"Ошибка для {user_id}: {e}")
+                logger.error(f"Ошибка рассылки для {user_id}: {e}")
                 failed += 1
         
-        await bot.send_message(
-            ADMIN_ID,
+        report = (
             f"✅ Рассылка завершена!\n"
             f"👥 Всего: {total}\n"
             f"✔️ Успешно: {success}\n"
             f"✖️ Ошибки: {failed}"
         )
+        await bot.send_message(ADMIN_ID, report)
     except Exception as e:
+        logger.critical(f"Критическая ошибка рассылки: {e}")
         await bot.send_message(ADMIN_ID, f"⛔ Ошибка рассылки: {e}")
 
-# Планировщик автоматической рассылки
 async def schedule_checker():
     while True:
-        now = datetime.now().strftime("%d.%m.%Y")
-        if now == current_mailing["date"]:
-            await send_mailing()
-            current_mailing["date"] = "31.12.2099"  # Чтобы не повторялось
-        await asyncio.sleep(3600)  # Проверка каждый час
+        try:
+            now = datetime.now().strftime("%d.%m.%Y")
+            if now == current_mailing["date"]:
+                await send_mailing()
+                current_mailing["date"] = "31.12.2099"
+            await asyncio.sleep(3600)
+        except Exception as e:
+            logger.error(f"Ошибка в schedule_checker: {e}")
+            await asyncio.sleep(60)
 
-# Запуск бота
 async def main():
     asyncio.create_task(schedule_checker())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Бот остановлен пользователем")
+    except Exception as e:
+        logger.critical(f"Фатальная ошибка: {e}")
