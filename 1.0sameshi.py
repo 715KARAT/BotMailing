@@ -44,15 +44,25 @@ async def save_user_id(message: types.Message):
     current_mailing["user_ids"].add(message.from_user.id)
 
 # Проверка подписки
-async def check_subscription(user_id: int) -> bool:
+async def check_subscription(user_id: int) -> tuple[bool, list[str]]:
+    """
+    Проверяет подписки на каналы
+    Возвращает: 
+    - True/False (подписан на все или нет)
+    - Список названий каналов без подписки
+    """
+    unsubscribed_channels = []
+    
     for channel in current_mailing["channels"]:
         try:
             member = await bot.get_chat_member(chat_id=channel["id"], user_id=user_id)
-            return member.status in ["member", "administrator", "creator"]
+            if member.status not in ["member", "administrator", "creator"]:
+                unsubscribed_channels.append(channel["name"])
         except Exception as e:
-            print(f"Ошибка проверки подписки: {e}")
-            return False
-    return True
+            print(f"Ошибка проверки канала {channel['name']}: {e}")
+            unsubscribed_channels.append(channel["name"])
+    
+    return (len(unsubscribed_channels) == 0, unsubscribed_channels)
 
 # Команда старта
 @dp.message(Command("start"))
