@@ -40,7 +40,7 @@ current_mailing = {
         {"id": -1002861287275, "name": "@lazvik_repet"},
         {"id": -1002204291357, "name": "@mirocreativonline"},
         {"id": -1002549199780, "name": "@proyazyk1"},
-        {"id": -1002631054307, "name": "@zxcmabot"},
+        # {"id": -1002631054307, "name": "@zxcmabot"},
     ],
     "user_ids": set()
 }
