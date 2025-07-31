@@ -34,6 +34,7 @@ current_mailing = {
     "text": "Здравствуйте! Вот материалы по рассылке: https://drive.google.com/drive/folders/1-srO5whhr4KfEMRej111by9qcs37HbOI?usp=sharing",
     "channels": [
         {"id": -1002895938397, "name": "@studywithmiro"},
+        #{"id": -1002442283388, "name": "@creatonedu"},
         #{"id": -1002542163897, "name": "@miroholst"},
         #{"id": -1001832702236, "name": "@mamasbooks"},
         #{"id": -1002386014261, "name": "@russianlanguageandgeography"},
